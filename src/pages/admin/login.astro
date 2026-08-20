@@ -1,0 +1,111 @@
+---
+import { createSupabaseServerClient } from '../../lib/supabase';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Hero from '../../components/Hero.astro';
+
+let error = '';
+
+if (Astro.request.method === 'POST') {
+	const formData = await Astro.request.formData();
+	const email = formData.get('email')?.toString();
+	const password = formData.get('password')?.toString();
+
+	if (email && password) {
+		const supabase = createSupabaseServerClient(Astro.cookies, Astro.request);
+		const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
+
+		if (authError) {
+			error = 'Identifiants incorrects.';
+		} else {
+			return Astro.redirect('/admin');
+		}
+	}
+}
+---
+
+<BaseLayout title="Connexion" description="Connexion admin">
+	<main class="wrapper stack gap-8">
+		<Hero title="Connexion" align="start" />
+		<form method="POST" class="admin-form">
+			<label>
+				Email
+				<input type="email" name="email" required />
+			</label>
+			<label>
+				Mot de passe
+				<input type="password" name="password" required />
+			</label>
+			<button type="submit">Se connecter</button>
+			{error && <p class="error">{error}</p>}
+		</form>
+	</main>
+</BaseLayout>
+
+<style>
+	.admin-form {
+		display: flex;
+		flex-direction: column;
+		gap: 1.25rem;
+		max-width: 26rem;
+		padding: 2rem;
+		background: var(--gradient-subtle);
+		border: 1px solid var(--gray-800);
+		border-radius: 1rem;
+		box-shadow: var(--shadow-sm);
+	}
+
+	label {
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+		font-family: var(--font-brand);
+		font-size: var(--text-sm);
+		color: var(--gray-300);
+	}
+
+	input,
+	textarea {
+		font-family: inherit;
+		font-size: var(--text-md);
+		color: var(--gray-0);
+		background: var(--gray-999);
+		border: 1px solid var(--gray-800);
+		border-radius: 0.5rem;
+		padding: 0.65rem 0.85rem;
+	}
+
+	input:focus,
+	textarea:focus {
+		outline: none;
+		border-color: var(--accent-regular);
+	}
+
+	button {
+		align-self: flex-start;
+		font-family: var(--font-brand);
+		font-weight: 600;
+		font-size: var(--text-sm);
+		color: var(--accent-text-over);
+		background: var(--accent-regular);
+		border: 0;
+		border-radius: 999rem;
+		padding: 0.65rem 1.5rem;
+		cursor: pointer;
+		transition: background-color var(--theme-transition);
+	}
+
+	button:hover,
+	button:focus {
+		background: var(--accent-dark);
+	}
+
+	.error {
+		color: #e05252;
+		font-size: var(--text-sm);
+	}
+    main {
+        align-items: center;
+        justify-content: center;
+        min-height: 60vh;
+    }
+</style>

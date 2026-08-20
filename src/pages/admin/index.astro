@@ -1,0 +1,277 @@
+---
+import { createSupabaseServerClient } from '../../lib/supabase';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Hero from '../../components/Hero.astro';
+
+const supabase = createSupabaseServerClient(Astro.cookies, Astro.request);
+const { data: { user } } = await supabase.auth.getUser();
+
+if (!user) {
+	return Astro.redirect('/admin/login');
+}
+if (Astro.request.method === 'POST' && Astro.url.searchParams.get('action') === 'logout') {
+	await supabase.auth.signOut();
+	return Astro.redirect('/admin/login');
+}
+
+let message = '';
+
+if (Astro.request.method === 'POST' && Astro.url.searchParams.get('action') !== 'logout') {
+	const formData = await Astro.request.formData();
+
+	const title = formData.get('title')?.toString() ?? '';
+	const description = formData.get('description')?.toString() ?? '';
+	const slug = formData.get('slug')?.toString() ?? '';
+	const content = formData.get('content')?.toString() ?? '';
+	const technologies = formData
+		.get('technologies')
+		?.toString()
+		.split(',')
+		.map((t) => t.trim())
+		.filter(Boolean) ?? [];
+
+	let image = '';
+	const imageFile = formData.get('imageFile');
+
+	if (imageFile instanceof File && imageFile.size > 0) {
+		const fileName = `${Date.now()}-${imageFile.name}`;
+		const { data: uploadData, error: uploadError } = await supabase.storage
+			.from('project-images')
+			.upload(fileName, imageFile);
+
+		if (uploadError) {
+			message = `Erreur upload : ${uploadError.message}`;
+		} else {
+			const { data: urlData } = supabase.storage
+				.from('project-images')
+				.getPublicUrl(uploadData.path);
+			image = urlData.publicUrl;
+		}
+	}
+
+	if (!message) {
+		const { error } = await supabase
+			.from('projects')
+			.insert({ title, description, image, slug, content, technologies });
+
+		message = error ? `Erreur : ${error.message}` : 'Projet ajouté !';
+	}
+}
+---
+
+<BaseLayout title="Admin" description="Espace admin">
+	<main class="wrapper stack gap-10">
+		<div class="admin-header">
+			<Hero title="Espace admin" align="start" />
+			<div class="admin-header-right">
+				<span class="user-email">Connecté en tant que {user.email}</span>
+				<form method="POST" action="/admin?action=logout">
+					<button type="submit" class="logout-btn">Se déconnecter</button>
+				</form>
+			</div>
+		</div>
+
+		<form method="POST" enctype="multipart/form-data" class="admin-form">
+			<label>
+				Titre
+				<input type="text" name="title" required />
+			</label>
+			<label>
+				Slug (URL)
+				<input type="text" name="slug" required />
+			</label>
+			<label>
+				Description
+				<textarea name="description" required rows="3"></textarea>
+			</label>
+            <label class="image-picker" for="imageFile">
+                <input type="file" name="imageFile" id="imageFile" accept="image/*" hidden />
+                <img id="image-preview" alt="Aperçu" hidden />
+                <span id="image-placeholder">Cliquer pour choisir une image</span>
+            </label>
+			<label>
+				Technologies (séparées par des virgules)
+				<input type="text" name="technologies" />
+			</label>
+			<label>
+				Contenu (Markdown)
+				<textarea name="content" rows="10"></textarea>
+			</label>
+			<button type="submit">Ajouter le projet</button>
+			{message && <p class="message">{message}</p>}
+		</form>
+	</main>
+</BaseLayout>
+
+<style>
+    main {
+        align-items: center;
+        text-align: center;
+    }
+
+    .admin-header {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.75rem;
+    }
+    .admin-form {
+        max-width: 40rem;
+        width: 100%;
+        margin-inline: auto;
+    }
+    .user-email {
+        font-family: var(--font-brand);
+        font-size: var(--text-sm);
+        color: var(--gray-300);
+    }
+
+    .logout-btn {
+        font-family: var(--font-brand);
+        font-size: var(--text-sm);
+        color: var(--gray-0);
+        background: var(--gray-900);
+        border: 1px solid var(--gray-800);
+        border-radius: 999rem;
+        padding: 0.5rem 1.25rem;
+        cursor: pointer;
+        transition: background-color var(--theme-transition);
+    }
+
+    .logout-btn:hover,
+    .logout-btn:focus {
+        background: var(--gray-800);
+    }
+
+	.user-email {
+		font-family: var(--font-brand);
+		font-size: var(--text-sm);
+		color: var(--gray-300);
+	}
+
+	.logout-btn {
+		font-family: var(--font-brand);
+		font-size: var(--text-sm);
+		color: var(--gray-0);
+		background: var(--gray-900);
+		border: 1px solid var(--gray-800);
+		border-radius: 999rem;
+		padding: 0.5rem 1.25rem;
+		cursor: pointer;
+		transition: background-color var(--theme-transition);
+	}
+
+	.logout-btn:hover,
+	.logout-btn:focus {
+		background: var(--gray-800);
+	}
+
+	.admin-form {
+		display: flex;
+		flex-direction: column;
+		gap: 1.25rem;
+		max-width: 40rem;
+		padding: 2rem;
+		background: var(--gradient-subtle);
+		border: 1px solid var(--gray-800);
+		border-radius: 1rem;
+		box-shadow: var(--shadow-sm);
+	}
+
+	label {
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+		font-family: var(--font-brand);
+		font-size: var(--text-sm);
+		color: var(--gray-300);
+	}
+
+	input,
+	textarea {
+		font-family: inherit;
+		font-size: var(--text-md);
+		color: var(--gray-0);
+		background: var(--gray-999);
+		border: 1px solid var(--gray-800);
+		border-radius: 0.5rem;
+		padding: 0.65rem 0.85rem;
+		resize: vertical;
+	}
+
+	input:focus,
+	textarea:focus {
+		outline: none;
+		border-color: var(--accent-regular);
+	}
+
+	button[type='submit'] {
+		align-self: flex-start;
+		font-family: var(--font-brand);
+		font-weight: 600;
+		font-size: var(--text-sm);
+		color: var(--accent-text-over);
+		background: var(--accent-regular);
+		border: 0;
+		border-radius: 999rem;
+		padding: 0.65rem 1.5rem;
+		cursor: pointer;
+		transition: background-color var(--theme-transition);
+	}
+
+	button[type='submit']:hover,
+	button[type='submit']:focus {
+		background: var(--accent-dark);
+	}
+
+	.message {
+		font-size: var(--text-sm);
+		color: var(--gray-100);
+	}
+    .image-picker {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        min-height: 8rem;
+        background: var(--gray-999);
+        border: 1px dashed var(--gray-800);
+        border-radius: 0.5rem;
+        cursor: pointer;
+        overflow: hidden;
+        transition: border-color var(--theme-transition);
+    }
+
+    .image-picker:hover {
+        border-color: var(--accent-regular);
+    }
+
+    #image-preview {
+        max-width: 100%;
+        max-height: 12rem;
+        object-fit: contain;
+    }
+
+    #image-placeholder {
+        font-family: var(--font-brand);
+        font-size: var(--text-sm);
+        color: var(--gray-300);
+    }
+</style>
+<script>
+	const input = document.getElementById('imageFile') as HTMLInputElement;
+	const preview = document.getElementById('image-preview') as HTMLImageElement;
+	const placeholder = document.getElementById('image-placeholder') as HTMLSpanElement;
+
+	input?.addEventListener('change', () => {
+		const file = input.files?.[0];
+		if (file) {
+			preview.src = URL.createObjectURL(file);
+			preview.hidden = false;
+			placeholder.hidden = true;
+		} else {
+			preview.hidden = true;
+			placeholder.hidden = false;
+		}
+	});
+</script>

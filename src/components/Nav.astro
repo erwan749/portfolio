@@ -2,13 +2,21 @@
 import Icon from './Icon.astro';
 import type { iconPaths } from './IconPaths';
 import ThemeToggle from './ThemeToggle.astro';
+import { createSupabaseServerClient } from '../lib/supabase';
 
-/** Main menu items */
+const supabase = createSupabaseServerClient(Astro.cookies, Astro.request);
+const { data: { user } } = await supabase.auth.getUser();
+
 const textLinks: { label: string; href: string }[] = [
 	{ label: 'Home', href: '/' },
 	{ label: 'Projet', href: '/work/' },
 	{ label: 'About', href: '/about/' },
 ];
+
+if (user) {
+	textLinks.push({ label: 'Admin', href: '/admin/' });
+}
+
 
 /** Icon links to social media — edit these with links to your profiles! */
 const iconLinks: { label: string; href: string; icon: keyof typeof iconPaths }[] = [
@@ -120,7 +128,7 @@ const isCurrentPage = (href: string) => {
 			};
 
 			// Toggle menu visibility when the menu button is clicked.
-			btn.addEventListener('click', () => setExpanded(menu.hidden));
+			btn.addEventListener('click', () => setExpanded(Boolean(menu.hidden)));
 
 			// Hide menu button for large screens.
 			const handleViewports = (e: MediaQueryList | MediaQueryListEvent) => {
